@@ -52,5 +52,5 @@
         "Temp/": true
     },
     "dotnet.preferCSharpExtension": true,
-    "dotnet.defaultSolution": "Portfolio_3D_CharacterController.sln"
+    "dotnet.defaultSolution": "UnityKinematicCharacterController3D.sln"
 }

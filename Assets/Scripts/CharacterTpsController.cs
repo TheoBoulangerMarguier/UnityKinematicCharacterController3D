@@ -1,12 +1,12 @@
 using UnityEngine;
 
+[RequireComponent(typeof(CharacterAnimController))]
+[RequireComponent(typeof(CharacterInputController))]
 public class CharacterTpsController : MonoBehaviour
 {   
-    [Header("REFERENCES")]
-    [SerializeField] private Transform tpsCameraRef;
-
     [Header("MOVEMENT")]
-    [SerializeField] private float moveSpeed = 6f;
+    [SerializeField] private float walkSpeed = 3f;
+    [SerializeField] private float runSpeed = 6f;
     [SerializeField] private float jumpPower = 6f;
     [SerializeField] private float maxSlopeAngle = 55f;
     
@@ -14,35 +14,59 @@ public class CharacterTpsController : MonoBehaviour
     [SerializeField] private float capsuleRadius = 0.25f;
     [SerializeField] private float capsuleHeight = 1.85f;
     [SerializeField] private LayerMask capsuleCollisionLayer;
+    
     [Header("PHYSICS")]
     [SerializeField] private float airFriction = 0.1f;
     [SerializeField] private float groundFriction = 0.5f;
     [SerializeField] private float gravityScale = 2f;
+    [SerializeField] private float fallingAirTimeThreshold = 1f;
 
 
+    //non-accessible variables
+    private CharacterInputController inputController;
     private float capsuleSkinWidth = 0.015f;
     private float rotationSmoothVelocity;
-    private bool isGrounded, isJumping;
-    private Vector3 hVelocity,vVelocity,inputDir;
     private const float GRAVITY_FORCE = 9.8f;
+    private float airTime = 0;
+
+    //accessible variable
+    public Vector3 hVelocity {get; private set;}
+    public Vector3 vVelocity {get; private set;}
+    public bool isGrounded {get; private set;}
+    public bool isFalling {get; private set;}
+    public bool isJumping {get; private set;}
+
+    void Awake()
+    {
+        inputController = GetComponent<CharacterInputController>();
+    }
 
     private void Update(){
-        //detect jump input
-        if (Input.GetKeyDown(KeyCode.Space) && isGrounded && !isJumping){
-            Debug.Log("jump");
+        //jumping
+        if (inputController.isJumpingPressed && isGrounded && !isJumping){
             vVelocity = Vector3.up*Mathf.Sqrt(jumpPower*2*GRAVITY_FORCE*gravityScale);
             isJumping = true;
         }
 
-        //detect move input
-        inputDir = GetMoveDirection();
+        //falling
+        if(!isGrounded){
+            airTime += Time.deltaTime;
+            if(airTime > fallingAirTimeThreshold){
+                isFalling = true;
+            }
+        }else{
+            airTime = 0;
+            isFalling = false;
+        }
     }
 
     private void FixedUpdate()
     {   
-        if(inputDir.magnitude > 0.1f){
-            hVelocity += inputDir*moveSpeed;
-            Rotate(inputDir);
+        //set move velocity and update rotation
+        if(inputController.cameraRelativeMoveInput.magnitude > 0.1f){
+            float speed = inputController.isRunningPressed ? runSpeed : walkSpeed;
+            hVelocity += inputController.cameraRelativeMoveInput * speed;
+            Rotate(inputController.cameraRelativeMoveInput);
         }
 
         //horizontal air friction
@@ -56,14 +80,6 @@ public class CharacterTpsController : MonoBehaviour
 
         //FixedApplyForces also calculate if the character is grounder in the next frame we correct vVelocity last 
         vVelocity = isGrounded ? Vector3.zero : ApplyFriction(vVelocity,airFriction);
-    }
-
-    //get ZQSD keyboard axis values -1,0,1 values on Horizontal/vertical
-    private Vector3 GetMoveDirection(){
-        Vector3 camForward = new Vector3(tpsCameraRef.forward.x,0,tpsCameraRef.forward.z).normalized;
-        Vector3 camRight = new Vector3(tpsCameraRef.right.x,0,tpsCameraRef.right.z).normalized;
-        Vector3 inputDir = Input.GetAxisRaw("Horizontal") * camRight + Input.GetAxisRaw("Vertical") * camForward;
-        return inputDir.normalized;
     }
 
     //Apply a specific friction factor to a vector velocity by multiplying them together.
